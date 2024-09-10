@@ -1,16 +1,9 @@
-resource "aws_security_group" "ec2_sg" {
+resource "aws_security_group" "alb_sg" {
   vpc_id = var.vpc_id
 
   ingress {
     from_port   = 80
     to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -25,51 +18,52 @@ resource "aws_security_group" "ec2_sg" {
 
 
 
-resource "aws_launch_configuration" "nginx-launch_config" {
-  name          = "nginx-launch-config"
-  image_id      = var.ami_id
-  instance_type = var.instance_type
-  security_groups = [aws_security_group.ec2_sg.id]
-
-  lifecycle {
-    create_before_destroy = true
+resource "aws_lb_target_group" "alb_tg_1" {
+  name        = "alb-tg-1"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+ 
+  health_check {
+    path                = "/"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold    = 2
+    unhealthy_threshold  = 2
   }
-
-       user_data            = <<-EOF
-                            #!/bin/bash
-                            sudo apt-get update
-                            sudo apt-get install -y nginx
-                            sudo systemctl start nginx
-                            sudo systemctl enable nginx
-                            EOF
-}
-
-resource "aws_autoscaling_group" "nginx-asg" {
-  launch_configuration = aws_launch_configuration.nginx-launch_config.id
-  vpc_zone_identifier  = var.private_subnet_ids
-  min_size             = 1
-  max_size             = 3
-  desired_capacity     = 1
-  tag {
-    key                 = "Name"
-    value               = "app-instance"
-    propagate_at_launch = true
+ 
+  tags = {
+    Name = "app-tg"
   }
-  target_group_arns     = [var.target_group_arn]
 }
 
-resource "aws_autoscaling_policy" "scale_out" {
-  name                   = "scale-out"
-  scaling_adjustment     = 1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.nginx-asg.name
+resource "aws_lb" "alb_1" {
+  name               = "alb-1"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = var.public_subnet_ids
+
+  enable_deletion_protection = false
+  enable_cross_zone_load_balancing = true
+  idle_timeout                = 60
+  tags = {
+    Name = "app-lb"
+  }
 }
 
-resource "aws_autoscaling_policy" "scale_in" {
-  name                   = "scale-in"
-  scaling_adjustment     = -1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.nginx-asg.name
+resource "aws_lb_listener" "alb_listener" {
+  load_balancer_arn = aws_lb.alb_1.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "forward"
+
+    forward {
+      target_group {
+        arn    = aws_lb_target_group.alb_tg_1.arn
+      }
+    }
+  }
 }
