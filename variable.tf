@@ -1,24 +1,29 @@
-variable "ami_id" {
-  description = "AMI ID for the EC2 instance"
-  type        = string
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = module.vpc.vpc_id
 }
 
-variable "instance_type" {
-  description = "EC2 instance type"
-  default     = "t2.micro"
+output "public_subnet_ids" {
+  description = "IDs of the public subnets"
+  value       = module.vpc.public_subnet_ids
 }
 
-variable "min_size" {
-  description = "Minimum size of the Auto Scaling Group"
-  default     = 1
+output "private_subnet_ids" {
+  description = "IDs of the private subnets"
+  value       = module.vpc.private_subnet_ids
 }
 
-variable "max_size" {
-  description = "Maximum size of the Auto Scaling Group"
-  default     = 3
+output "internet_gateway_id" {
+  description = "ID of the Internet Gateway"
+  value       = module.vpc.internet_gateway_id
 }
 
-variable "desired_capacity" {
-  description = "Desired capacity of the Auto Scaling Group"
-  default     = 1
+output "alb_dns_name" {
+  description = "DNS name of the ALB"
+  value       = module.loadbalancer.alb_dns_name
+}
+
+output "autoscaling_group_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = module.autoscaling.autoscaling_group_name
 }
