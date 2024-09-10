@@ -1,24 +1,75 @@
-provider "aws" {
-  region = var.region
-}
-module "vpc" {
-  source = ".//module1"
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidrs = var.public_subnet_cidrs
-  private_subnet_cidrs = var.private_subnet_cidrs
+resource "aws_security_group" "ec2_sg" {
+  vpc_id = var.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
-module "loadbalancer" {
-  source = ".//module2"
-  vpc_id = module.vpc.vpc_id
-  public_subnet_ids = module.vpc.public_subnet_ids
+
+
+resource "aws_launch_configuration" "nginx-launch_config" {
+  name          = "nginx-launch-config"
+  image_id      = var.ami_id
+  instance_type = var.instance_type
+  security_groups = [aws_security_group.ec2_sg.id]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+       user_data            = <<-EOF
+                            #!/bin/bash
+                            sudo apt-get update
+                            sudo apt-get install -y nginx
+                            sudo systemctl start nginx
+                            sudo systemctl enable nginx
+                            EOF
 }
 
-module "autoscaling" {
-  source = ".//module3"
-  vpc_id            = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  target_group_arn  = module.loadbalancer.alb_target_group_arn
-  ami_id            = var.ami_id
-  instance_type     = var.instance_type
+resource "aws_autoscaling_group" "nginx-asg" {
+  launch_configuration = aws_launch_configuration.nginx-launch_config.id
+  vpc_zone_identifier  = var.private_subnet_ids
+  min_size             = 1
+  max_size             = 3
+  desired_capacity     = 1
+  tag {
+    key                 = "Name"
+    value               = "app-instance"
+    propagate_at_launch = true
+  }
+  target_group_arns     = [var.target_group_arn]
+}
+
+resource "aws_autoscaling_policy" "scale_out" {
+  name                   = "scale-out"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = aws_autoscaling_group.nginx-asg.name
+}
+
+resource "aws_autoscaling_policy" "scale_in" {
+  name                   = "scale-in"
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = aws_autoscaling_group.nginx-asg.name
 }
