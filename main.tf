@@ -1,50 +1,24 @@
 provider "aws" {
-  region = "us-west-2"
+  region = var.region
+}
+module "vpc" {
+  source = ".//module1"
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidrs = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
 }
 
-# Auto Scaling Launch Configuration
-resource "aws_launch_configuration" "app" {
-  name_prefix          = "app-"
-  image_id             = "ami-0075013580f6322a1"  # Ensure this AMI has the required OS
-  instance_type        = "t2.micro"
-  security_groups      = [aws_security_group.allow_all.id]
-  user_data            = <<-EOF
-                            #!/bin/bash
-                            sudo apt-get update
-                            sudo apt-get install -y nginx
-                            sudo systemctl start nginx
-                            sudo systemctl enable nginx
-                            EOF
+module "loadbalancer" {
+  source = ".//module2"
+  vpc_id = module.vpc.vpc_id
+  public_subnet_ids = module.vpc.public_subnet_ids
 }
 
-# Auto Scaling Group
-resource "aws_autoscaling_group" "app" {
-  launch_configuration = aws_launch_configuration.app.id
-  vpc_zone_identifier = [aws_subnet.public_subnet_1.id, aws_subnet.public_subnet_2.id, aws_subnet.private_subnet_1.id]
-  min_size             = 1
-  max_size             = 3
-  desired_capacity     = 1
-  tag {
-    key                 = "Name"
-    value               = "app-instance"
-    propagate_at_launch = true
-  }
-  target_group_arns = [aws_lb_target_group.app_tg.arn]
-}
-
-# Auto Scaling Policy
-resource "aws_autoscaling_policy" "scale_out" {
-  name                   = "scale-out"
-  scaling_adjustment     = 1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.app.name
-}
-
-resource "aws_autoscaling_policy" "scale_in" {
-  name                   = "scale-in"
-  scaling_adjustment     = -1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.app.name
+module "autoscaling" {
+  source = ".//module3"
+  vpc_id            = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+  target_group_arn  = module.loadbalancer.alb_target_group_arn
+  ami_id            = var.ami_id
+  instance_type     = var.instance_type
 }
