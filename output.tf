@@ -1,9 +1,8 @@
-
-output "autoscaling_group_id" {
-  value = aws_autoscaling_group.nginx-asg.id
+output "alb_target_group_arn" {
+  value = aws_lb_target_group.alb_tg_1.arn
 }
 
-output "autoscaling_group_name" {
-  description = "Name of the Auto Scaling Group"
-  value       = aws_autoscaling_group.nginx-asg.name
+output "alb_dns_name" {
+  description = "DNS name of the ALB"
+  value       = aws_lb.alb_1.dns_name
 }
