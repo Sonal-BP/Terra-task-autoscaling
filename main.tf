@@ -1,23 +1,3 @@
-resource "aws_security_group" "alb_sg" {
-  vpc_id = var.vpc_id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-
-
 resource "aws_lb_target_group" "alb_tg_1" {
   name        = "alb-tg-1"
   port        = 80
@@ -41,7 +21,7 @@ resource "aws_lb" "alb_1" {
   name               = "alb-1"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
+  security_groups    = [var.alb_sg_id]
   subnets            = var.public_subnet_ids
 
   enable_deletion_protection = false
